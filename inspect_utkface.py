@@ -6,31 +6,27 @@ Pipeline:
 2. Parse labels from filename
 3. Data cleaning
 4. Train / Validation / Test split
-5. Resize to 224x224
-6. Normalize / augmentation configuration
 
-Raw images are NOT modified.
 Processed images are NOT duplicated on disk.
 Metadata and split information are stored as CSV files.
 
 Target:
-    Age    -> Regression
+    Age    -> Regression or binned classification (0-116)
     Gender -> Binary classification (0 = Male, 1 = Female)
-
-Requirements:
-    pip install pandas numpy pillow scikit-learn
 """
 
-from pathlib import Path
+from collections import defaultdict
+from dataclasses import dataclass
+from hashlib import sha256
 from io import BytesIO
 import re
+from pathlib import Path
 from zipfile import ZipFile
 
 import pandas as pd
 
 from PIL import Image
 from sklearn.model_selection import train_test_split
-
 
 # ============================================================
 # CONFIGURATION
@@ -49,15 +45,50 @@ TRAIN_RATIO = 0.70
 VAL_RATIO = 0.15
 TEST_RATIO = 0.15
 
-METADATA_COLUMNS = ["filename", "age", "gender", "race"]
+METADATA_COLUMNS = ["member", "date", "age", "gender", "race"]
 
+@dataclass
+class ArchiveImage:
+    member: str
+    filename: str
+    data: bytes
+
+def parse_label(filename: str) -> tuple[int, int, int] | None:
+    match = re.match(r"^(\d+)_([01])_([0-4])_", filename)
+    return tuple(map(int, match.groups())) if match else None
+
+def select_unique_members(images: list[ArchiveImage]) -> set[str]:
+    """Select metadata members without modifying the raw archive."""
+    groups = defaultdict(list)
+    for image in images:
+        groups[sha256(image.data).hexdigest()].append(image)
+
+    kept_members = set()
+    same_label_images = 0
+    conflict_images = 0
+
+    for group in groups.values():
+        if len(group) == 1:
+            kept_members.add(group[0].member)
+            continue
+
+        labels = {parse_label(image.filename) for image in group}
+        if None not in labels and len(labels) == 1:
+            kept_members.add(group[0].member)
+            same_label_images += len(group)
+        else:
+            conflict_images += len(group)
+
+    print(f"Same-label duplicate images : {same_label_images:,}")
+    print(f"Conflict duplicate images   : {conflict_images:,}")
+
+    return kept_members
 
 # ============================================================
 # DIRECTORY SETUP
 # ============================================================
 
 METADATA_DIR.mkdir(parents=True, exist_ok=True)
-
 
 # ============================================================
 # 1. DATASET INSPECTION + METADATA EXTRACTION
@@ -79,14 +110,18 @@ def inspect_dataset():
     )
 
     with ZipFile(RAW_ARCHIVE, "r") as archive:
-        image_files = sorted(
-            member
-            for member in archive.namelist()
+        image_files = [
+            ArchiveImage(member, Path(member).name, archive.read(member))
+            for member in sorted(archive.namelist())
             if member.lower().endswith(".jpg")
-        )
+        ]
+        kept_members = select_unique_members(image_files)
 
-        for member in image_files:
-            filename = Path(member).name
+        for image_file in image_files:
+            if image_file.member not in kept_members:
+                continue
+
+            filename = image_file.filename
             match = filename_pattern.match(filename)
 
             if match is None:
@@ -98,7 +133,7 @@ def inspect_dataset():
             race = int(match.group("race"))
 
             try:
-                image_bytes = archive.read(member)
+                image_bytes = image_file.data
 
                 with Image.open(BytesIO(image_bytes)) as image:
                     image.load()
@@ -108,7 +143,7 @@ def inspect_dataset():
             except (OSError, ValueError) as exc:
                 corrupted_images.append(
                     {
-                        "filename": filename,
+                        "member": image_file.member,
                         "reason": str(exc)
                     }
                 )
@@ -116,7 +151,11 @@ def inspect_dataset():
 
             records.append(
                 {
-                    "filename": filename,
+                    "member": image_file.member,
+                    "date": pd.to_datetime(
+                        match.group("timestamp")[:8],
+                        format="%Y%m%d",
+                    ),
                     "age": age,
                     "gender": gender,
                     "race": race,
@@ -181,7 +220,6 @@ def inspect_dataset():
 
     return metadata
 
-
 # ============================================================
 # 2. DATA CLEANING
 # ============================================================
@@ -196,30 +234,13 @@ def clean_metadata(metadata):
 
     clean = metadata.copy()
 
-    # Valid age range based on the dataset inspection.
-    clean = clean[
+    valid_records = (
         clean["age"].between(1, 116)
-    ]
-
-    # Gender must be binary.
-    clean = clean[
-        clean["gender"].isin([0, 1])
-    ]
-
-    # Race must be one of the five UTKFace labels.
-    clean = clean[
-        clean["race"].isin([0, 1, 2, 3, 4])
-    ]
-
-    # Keep RGB images for downstream model input.
-    clean = clean[
-        clean["channels"] == 3
-    ]
-
-    # Remove duplicate filenames.
-    clean = clean.drop_duplicates(
-        subset=["filename"]
+        & clean["gender"].isin([0, 1])
+        & clean["race"].isin([0, 1, 2, 3, 4])
+        & clean["channels"].eq(3)
     )
+    clean = clean.loc[valid_records].drop_duplicates("member")
 
     clean[METADATA_COLUMNS].to_csv(
         METADATA_DIR / "clean_metadata.csv",
@@ -235,7 +256,6 @@ def clean_metadata(metadata):
 
     return clean
 
-
 # ============================================================
 # 3. TRAIN / VALIDATION / TEST SPLIT
 # ============================================================
@@ -245,20 +265,22 @@ def create_splits(metadata):
     Create a fixed 70/15/15 split.
 
     Gender is always stratified. When enabled, age is grouped into
-    ten-year bins and combined with gender for stratification.
+    five bins and combined with gender for stratification.
     """
 
     stratify_labels = metadata["gender"].astype(str)
 
     if STRATIFY_BY_AGE:
-        age_bins = list(range(0, 121, 10))
+        age_bins = [0, 18, 30, 45, 60, float("inf")]
+        age_labels = ["0-17", "18-29", "30-44", "45-59", "60+"]
         age_groups = pd.cut(
             metadata["age"],
             bins=age_bins,
+            labels=age_labels,
             right=False,
             include_lowest=True
         ).astype(str)
-        stratify_labels = stratify_labels + "_" + age_groups
+        stratify_labels = age_groups + "_" + stratify_labels
 
     label_counts = stratify_labels.value_counts()
     if label_counts.min() < 2:
@@ -347,12 +369,8 @@ def create_splits(metadata):
 
     return train, val, test
 
-
 # ============================================================
 # 4. PIPELINE COMPLETION
-# ============================================================
-# ============================================================
-# 6. MAIN PIPELINE
 # ============================================================
 
 def main():
@@ -361,24 +379,17 @@ def main():
     print("UTKFACE DATA PREPARATION")
     print("=" * 60)
 
-    # Step 1 + 2:
-    # Inspect dataset and extract labels from filenames.
+    # Step 1 + 2: Inspect dataset and extract labels from filenames.
     metadata = inspect_dataset()
     if metadata.empty:
         raise RuntimeError(
             "No valid UTKFace images were found."
         )
 
-    # Step 3:
-    # Clean invalid records.
+    # Step 3: Clean invalid records.
     metadata = clean_metadata(metadata)
-    if metadata.empty:
-        raise RuntimeError(
-            "No valid images remain after cleaning."
-        )
 
-    # Step 4:
-    # Fixed train / validation / test split.
+    # Step 4: Fixed train / validation / test split.
     train, val, test = create_splits(metadata)
 
 if __name__ == "__main__":
