@@ -21,11 +21,13 @@ Correlation with age:
 
 Figures saved in data/eda/figures/:
   - 01_age_distribution.png
-  - 02_gender_distribution.png
-  - 03_race_distribution.png
-  - 04_age_by_gender.png
-  - 05_age_by_race.png
-  - 06_gender_by_race.png
-  - 07_image_properties.png
-  - 08_correlation_matrix.png
-  - 09_split_comparison.png
+  - 02_age_bin_table.png
+  - 03_gender_distribution.png
+  - 04_race_distribution.png
+  - 05_age_by_gender.png
+  - 06_age_by_race.png
+  - 07_gender_by_race.png
+  - 08_image_properties.png
+  - 09_image_quality_vs_age.png
+  - 10_correlation_matrix.png
+  - 11_split_comparison.png

@@ -112,6 +112,43 @@ def univariate_age(metadata):
     print(f"IQR outlier bounds : [{lower:.1f}, {upper:.1f}]")
     print(f"IQR outlier count  : {len(outliers):,} ({len(outliers)/len(metadata)*100:.2f}%)")
 
+def age_bin_table(metadata, bin_width=10):
+    max_age = int(metadata["age"].max())
+    bins = list(range(0, max_age + bin_width, bin_width))
+    labels = [f"{b}-{b + bin_width - 1}" for b in bins[:-1]]
+
+    binned = pd.cut(
+        metadata["age"], bins=bins, labels=labels, right=False, include_lowest=True
+    )
+    counts = binned.value_counts().sort_index()
+    pct = (counts / counts.sum() * 100).round(2)
+
+    table = pd.DataFrame({"count": counts, "pct": pct})
+
+    plt.figure(figsize=(10, 5))
+    ax = sns.barplot(x=table.index, y=table["count"], color="#4C72B0")
+    plt.title(f"Sample count per {bin_width}-year age bin")
+    plt.ylabel("Count")
+    plt.xlabel("Age bin")
+    plt.xticks(rotation=45)
+    for i, (cnt, p) in enumerate(zip(table["count"], table["pct"])):
+        ax.text(i, cnt, f"{cnt}\n({p}%)", ha="center", va="bottom", fontsize=8)
+    plt.tight_layout()
+    plt.savefig(FIGURES_DIR / "02_age_bin_table.png", dpi=150)
+    plt.close()
+
+    threshold_pct = 2.0
+    thin_bins = table[table["pct"] < threshold_pct]
+
+    print("\n" + "=" * 60)
+    print(f"AGE BIN TABLE (bin width = {bin_width} years)")
+    print("=" * 60)
+    print(table)
+    print(f"\nBins under {threshold_pct}% of total data (weak, watch model performance here):")
+    print(thin_bins if len(thin_bins) else "  (none)")
+
+    return table
+
 
 def univariate_gender(metadata):
     counts = metadata["gender"].map(GENDER_MAP).value_counts()
@@ -123,7 +160,7 @@ def univariate_gender(metadata):
     for i, v in enumerate(counts.values):
         plt.text(i, v, f"{v:,}\n({v/counts.sum()*100:.1f}%)", ha="center", va="bottom")
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "02_gender_distribution.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "03_gender_distribution.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -144,7 +181,7 @@ def univariate_race(metadata):
     for i, v in enumerate(counts.values):
         plt.text(i, v, f"{v:,}\n({v/counts.sum()*100:.1f}%)", ha="center", va="bottom")
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "03_race_distribution.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "04_race_distribution.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -170,7 +207,7 @@ def bivariate_age_gender(metadata):
     )
     plt.title("Age distribution by gender")
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "04_age_by_gender.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "05_age_by_gender.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -189,7 +226,7 @@ def bivariate_age_race(metadata):
     plt.title("Age distribution by race")
     plt.xticks(rotation=20)
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "05_age_by_race.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "06_age_by_race.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -212,7 +249,7 @@ def bivariate_gender_race(metadata):
     plt.xticks(rotation=20)
     plt.legend(title="Gender")
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "06_gender_by_race.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "07_gender_by_race.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -252,6 +289,7 @@ def image_property_analysis(metadata, sample_size=IMAGE_SAMPLE_SIZE):
 
             records.append(
                 {
+                    "member": member,
                     "filename": filename,
                     "width": width,
                     "height": height,
@@ -275,7 +313,7 @@ def image_property_analysis(metadata, sample_size=IMAGE_SAMPLE_SIZE):
     axes[2].set_title("Contrast (std of pixel intensity)")
 
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "07_image_properties.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "08_image_properties.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -286,6 +324,50 @@ def image_property_analysis(metadata, sample_size=IMAGE_SAMPLE_SIZE):
     print(props[["file_size_kb", "brightness", "contrast"]].describe())
 
     return props
+
+def image_quality_vs_age(props, metadata):
+    merged = props.merge(
+        metadata[["member", "age"]], on="member", how="inner")
+    
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    sns.regplot(
+        data=merged, x="age", y="brightness",
+        scatter_kws={"alpha": 0.4, "s": 15}, line_kws={"color": "red"},
+        ax=axes[0], )
+    axes[0].set_title("Brightness vs Age")
+
+    sns.regplot(
+        data=merged, x="age", y="contrast",
+        scatter_kws={"alpha": 0.4, "s": 15}, line_kws={"color": "red"},
+        ax=axes[1],
+    )
+    axes[1].set_title("Contrast vs Age")
+
+    plt.tight_layout()
+    plt.savefig(FIGURES_DIR / "09_image_quality_vs_age.png", dpi=150)
+    plt.close()
+
+    corr_brightness = merged["age"].corr(merged["brightness"])
+    corr_contrast = merged["age"].corr(merged["contrast"])
+    corr_filesize = merged["age"].corr(merged["file_size_kb"])
+
+    print("\n" + "=" * 60)
+    print("IMAGE QUALITY vs AGE")
+    print("=" * 60)
+    print(f"Correlation age-brightness : {corr_brightness:.3f}")
+    print(f"Correlation age-contrast   : {corr_contrast:.3f}")
+    print(f"Correlation age-file_size  : {corr_filesize:.3f}")
+    print(
+        "Rule of thumb: |corr| < 0.1 negligible, 0.1-0.3 weak/worth noting, "
+        "> 0.3 systematic bias likely present."
+    )
+
+    return {
+        "corr_brightness": corr_brightness,
+        "corr_contrast": corr_contrast,
+        "corr_filesize": corr_filesize,
+    }
 
 
 # ============================================================
@@ -303,7 +385,7 @@ def correlation_analysis(metadata):
     sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", center=0)
     plt.title("Correlation matrix (age, gender, race one-hot)")
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "08_correlation_matrix.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "10_correlation_matrix.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -341,7 +423,7 @@ def split_distribution_comparison(splits):
     axes[1].set_ylabel("%")
 
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "09_split_comparison.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "11_split_comparison.png", dpi=150)
     plt.close()
 
     print("\n" + "=" * 60)
@@ -408,6 +490,7 @@ def main():
     overview_stats = overview(clean)
 
     univariate_age(clean)
+    age_bin_table(clean)
     univariate_gender(clean)
     univariate_race(clean)
 
@@ -416,6 +499,7 @@ def main():
     bivariate_gender_race(clean)
 
     props = image_property_analysis(clean)
+    image_quality_vs_age(props, clean)
 
     corr = correlation_analysis(clean)
     split_distribution_comparison(splits)
