@@ -55,11 +55,6 @@ METADATA_DIR.mkdir(parents=True, exist_ok=True)
 # ============================================================
 
 def inspect_dataset():
-    """
-    Scan all JPG files, parse labels from filenames,
-    validate image files and collect image metadata.
-    """
-
     records = []
     invalid_filenames = []
     corrupted_images = []
@@ -179,27 +174,17 @@ def inspect_dataset():
 # ============================================================
 
 def clean_metadata(metadata):
-    """
-    Remove invalid labels and unreasonable image records.
-    Raw images remain untouched.
-    """
-
     before = len(metadata)
     clean = metadata.copy()
 
-    # Valid age range based on the dataset inspection.
     clean = clean.loc[clean["age"].between(1, 116)].copy()
 
-    # Gender must be binary.
     clean = clean.loc[clean["gender"].isin([0, 1])]
 
-    # Race must be one of the five UTKFace labels.
     clean = clean.loc[clean["race"].isin([0, 1, 2, 3, 4])]
 
-    # Keep RGB images for downstream model input.
     clean = clean.loc[clean["channels"] == 3]
 
-    # Remove every file in a hash group when its labels disagree.
     labels_per_hash = clean.groupby("sha256")[LABEL_COLUMNS].nunique()
     conflict_hashes = labels_per_hash.index[
         labels_per_hash.gt(1).any(axis=1)
@@ -213,7 +198,6 @@ def clean_metadata(metadata):
     removed_duplicate_count = duplicate_file_count - duplicate_group_count
     clean = clean.drop_duplicates(subset="sha256", keep="first").copy()
 
-    # Keep CSV values aligned with the declared schema.
     clean["age"] = clean["age"].astype("int64")
     clean["gender"] = clean["gender"].astype("int64")
     clean["race"] = clean["race"].astype("int64")
@@ -243,13 +227,6 @@ def clean_metadata(metadata):
 # ============================================================
 
 def create_splits(metadata):
-    """
-    Create a fixed 70/15/15 split.
-
-    Gender is always stratified. When enabled, age is grouped into five
-    life-stage bins and combined with gender for stratification.
-    """
-
     stratify_labels = metadata["gender"].astype(str)
 
     if STRATIFY_BY_AGE:
@@ -359,17 +336,14 @@ def main():
     print("UTKFACE DATA PREPARATION")
     print("=" * 60)
 
-    # Step 1 + 2: Inspect dataset and extract labels from filenames.
     metadata = inspect_dataset()
     if metadata.empty:
         raise RuntimeError(
             "No valid UTKFace images were found."
         )
 
-    # Step 3: Clean invalid records.
     metadata = clean_metadata(metadata)
 
-    # Step 4: Fixed train / validation / test split.
     train, val, test = create_splits(metadata)
 
 if __name__ == "__main__":
