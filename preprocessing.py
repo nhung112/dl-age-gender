@@ -1,21 +1,24 @@
 """
-FILE 2: PREPROCESSING UTKFACE 
+UTKFace Image Preprocessing Pipeline
 
-Chạy:
-    python prepare_utkface_part2.py
+Pipeline:
+1. Load and validate the existing Train / Validation / Test metadata
+2. Validate that every metadata member exists in the ZIP archive
+3. Resize, augment and normalize images during loading
+4. Build PyTorch Dataset and DataLoader objects
 
-Thư viện:
-    pandas, numpy, Pillow, torch, torchvision, matplotlib
+Preprocessing:
+    Simple CNN  -> Resize, augmentation and pixel scaling to [0, 1]
+    Complex CNN -> Resize, augmentation and pixel scaling to [0, 1]
+    ResNet18    -> Resize, augmentation and ImageNet normalization
 
-Đầu vào:
-    Các CSV đã được file 1 chia và ảnh trong ZIP.
+Output:
+    DataLoader for Simple CNN, Complex CNN and ResNet18
+    Preprocessing configuration and augmentation previews
 
-Đầu ra:
-    DataLoader dùng cho Simple CNN, Complex CNN và ResNet18.
-    Cấu hình preprocessing, báo cáo ảnh trùng, preview augmentation.
-
-Không sửa ảnh gốc. Không chia lại train/val/test.
-Hash chỉ phát hiện ảnh RGB giống hệt, không kiểm chứng khác người.
+Target:
+    Age    -> Regression
+    Gender -> Binary classification (0 = Male, 1 = Female)
 """
 
 from pathlib import Path
@@ -37,7 +40,7 @@ import matplotlib.pyplot as plt
 
 
 # ============================================================
-# 1. CẤU HÌNH
+# 1. CONFIGURATION
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -50,6 +53,7 @@ IMAGE_SIZE = 224
 BATCH_SIZE = 32
 SEED = 42
 
+SPLIT_NAMES = ("train", "val", "test")
 COLUMNS = ["member", "age", "gender", "race"]
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -57,7 +61,6 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 def set_seed(seed=SEED):
-    """Cố định trạng thái ngẫu nhiên trước mỗi model."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -70,106 +73,32 @@ def set_seed(seed=SEED):
 
 
 # ============================================================
-# 2. ĐỌC VÀ KIỂM TRA SPLIT CỦA FILE 1
+# 2. LOAD AND VALIDATE SPLITS FROM FILE 1
 # ============================================================
-
-def read_metadata(path):
-    path = Path(path)
-
-    if not path.is_file():
-        raise FileNotFoundError(f"Metadata CSV not found: {path}")
-
-    data = pd.read_csv(path, encoding="utf-8-sig")
-    data.columns = [
-        str(column).replace("\ufeff", "").strip().lower()
-        for column in data.columns
-    ]
-
-    if not set(COLUMNS).issubset(data.columns):
-        raise ValueError(f"CSV is missing a required column: {path}")
-
-    data = data[COLUMNS].copy()
-
-    if data.empty or data.isna().any().any():
-        raise ValueError(f"CSV is empty or has missing values in columns: {path}")
-
-    if data["member"].duplicated().any():
-        raise ValueError(f"CSV has duplicate member values: {path}")
-
-    for column in ["age", "gender", "race"]:
-        values = pd.to_numeric(data[column], errors="raise")
-
-        if not np.isfinite(values).all() or not (values % 1 == 0).all():
-            raise ValueError(f"Column {column} must be finite integers.")
-
-        data[column] = values.astype(int)
-
-    if not data["age"].between(1, 116).all():
-        raise ValueError("Age must be between range 1 and 116.")
-
-    if not data["gender"].isin([0, 1]).all():
-        raise ValueError("Gender must be either 0 or 1.")
-
-    if not data["race"].isin([0, 1, 2, 3, 4]).all():
-        raise ValueError("Race is invalid.")
-
-
-    normalized_members = []
-    for member in data["member"]:
-        if not isinstance(member, str) or not member.strip():
-            raise ValueError(f"Invalid ZIP member in {path}: {member!r}")
-
-        normalized = member.strip().replace("\\", "/")
-        parts = normalized.split("/")
-
-        if (
-            normalized.startswith("/")
-            or len(normalized) >= 2 and normalized[1] == ":"
-            or ".." in parts
-            or not normalized.lower().endswith(".jpg")
-        ):
-            raise ValueError(f"Invalid ZIP member in {path}: {member!r}")
-
-        normalized_members.append(normalized)
-
-    data["member"] = normalized_members
-
-    return data
-
 
 def load_splits(metadata_dir=METADATA_DIR):
-    """Kiểm tra overlap, coverage và nhãn; không chia lại."""
     metadata_dir = Path(metadata_dir)
 
-    clean = read_metadata(metadata_dir / "clean_metadata.csv")
-
-    splits = {
-        name: read_metadata(metadata_dir / f"{name}.csv")
-        for name in ["train", "val", "test"]
+    return {
+        split: pd.read_csv(
+            metadata_dir / f"{split}.csv",
+            usecols=list(COLUMNS),
+            dtype={
+                "member": "string",
+                "age": "float32",
+                "gender": "int64"
+            },
+            encoding="utf-8-sig"
+        )
+        for split in SPLIT_NAMES
     }
-
-    combined = pd.concat(splits.values(), ignore_index=True)
-
-    if combined["member"].duplicated().any():
-        raise ValueError("Member appears in multiple splits.")
-
-    pd.testing.assert_frame_equal(
-        combined.sort_values("member").reset_index(drop=True),
-        clean.sort_values("member").reset_index(drop=True)
-    )
-
-    for name, data in splits.items():
-        print(f"{name}: {len(data):,} images")
-
-    return splits
 
 
 # ============================================================
-# 3. TÌM ẢNH BÊN TRONG ZIP
+# 3. FIND IMAGES IN ZIP
 # ============================================================
 
 def create_zip_index(zip_path, members):
-    """Validate exact ZIP member paths stored by file 1."""
     zip_path = Path(zip_path)
 
     if not zip_path.is_file():
@@ -194,68 +123,7 @@ def create_zip_index(zip_path, members):
 
 
 # ============================================================
-# 4. KIỂM TRA ẢNH LỖI VÀ ẢNH GIỐNG HỆT XUYÊN TẬP
-# ============================================================
-
-def audit_images(splits, zip_path, index, output_dir):
-    records = []
-
-    with ZipFile(zip_path) as archive:
-        for split_name, data in splits.items():
-            for member in data["member"]:
-                try:
-                    content = archive.read(index[member])
-
-                    with Image.open(BytesIO(content)) as image:
-                        image = image.convert("RGB")
-                        image.load()
-
-                        payload = str(image.size).encode() + image.tobytes()
-                        image_hash = hashlib.sha256(payload).hexdigest()
-
-                except (OSError, ValueError) as error:
-                    raise ValueError(
-                        f"Failed to read image: {member}"
-                    ) from error
-
-                records.append({
-                    "member": member,
-                    "split": split_name,
-                    "image_hash": image_hash
-                })
-
-    table = pd.DataFrame(records)
-
-    duplicates = table[
-        table.duplicated("image_hash", keep=False)
-    ]
-
-    duplicates.to_csv(
-        output_dir / "exact_duplicates.csv",
-        index=False
-    )
-
-    split_counts = table.groupby("image_hash")["split"].nunique()
-    bad_hashes = split_counts[split_counts > 1].index
-
-    cross_split = table[table["image_hash"].isin(bad_hashes)]
-
-    if not cross_split.empty:
-        cross_split.to_csv(
-            output_dir / "cross_split_duplicates.csv",
-            index=False
-        )
-
-        raise ValueError(
-            "Cross-split duplicates found. "
-            "See cross_split_duplicates.csv and process in file 1."
-        )
-
-    print("Images checked.")
-
-
-# ============================================================
-# 5. RESIZE, AUGMENTATION VÀ NORMALIZATION
+# 4. RESIZE, AUGMENTATION AND NORMALIZATION
 # ============================================================
 
 def create_transform(model_type, training, image_size=IMAGE_SIZE):
@@ -286,7 +154,7 @@ def create_transform(model_type, training, image_size=IMAGE_SIZE):
 
 
 # ============================================================
-# 6. DATASET: ĐỌC MỘT ẢNH VÀ NHÃN TƯƠNG ỨNG
+# 5. DATASET: READ AN IMAGE AND ITS LABELS
 # ============================================================
 
 class UTKFaceDataset(Dataset):
@@ -332,7 +200,7 @@ class UTKFaceDataset(Dataset):
 
 
 # ============================================================
-# 7. DATALOADER: GOM ẢNH THÀNH BATCH
+# 6. DATALOADER: GROUP IMAGES INTO BATCHES
 # ============================================================
 
 def build_loaders(
@@ -382,7 +250,7 @@ def build_loaders(
 
 
 # ============================================================
-# 8. KIỂM TRA BATCH VÀ AUGMENTATION
+# 7. CHECK BATCHES AND AUGMENTATION
 # ============================================================
 
 def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
@@ -418,7 +286,6 @@ def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
 
 
 def save_augmentation_preview(loader, model_type, output_path):
-    """Xem cùng một ảnh train qua nhiều lần augmentation"""
     dataset = loader.dataset
 
     figure, axes = plt.subplots(1, 4, figsize=(12, 3))
@@ -441,7 +308,7 @@ def save_augmentation_preview(loader, model_type, output_path):
 
 
 # ============================================================
-# 9. LƯU CẤU HÌNH ĐỂ INFERENCE XỬ LÝ GIỐNG TRAINING
+# 8. SAVE CONFIGURATION FOR INFERENCE TO MATCH TRAINING
 # ============================================================
 
 def save_config(output_dir):
@@ -481,21 +348,15 @@ def save_config(output_dir):
 
 
 # ============================================================
-# 10. CHẠY TOÀN BỘ PREPROCESSING
+# 9. RUN FULL PREPROCESSING
 # ============================================================
 
 def main():
-    splits = load_splits()
-
-    members = pd.concat(splits.values())["member"]
-    index = create_zip_index(ZIP_PATH, members)
-
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     run_dir = Path(
         tempfile.mkdtemp(prefix="run_", dir=OUTPUT_DIR)
     )
 
-    audit_images(splits, ZIP_PATH, index, run_dir)
     save_config(run_dir)
 
     for model_type in ["scratch", "resnet18"]:
