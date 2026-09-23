@@ -8,9 +8,9 @@ Pipeline:
 4. Build PyTorch Dataset and DataLoader objects
 
 Preprocessing:
-    Simple CNN  -> Resize, augmentation and pixel scaling to [0, 1]
-    Complex CNN -> Resize, augmentation and pixel scaling to [0, 1]
-    ResNet18    -> Resize, augmentation and ImageNet normalization
+    Simple CNN  -> normalization="none"
+    Complex CNN -> normalization="none"
+    ResNet18    -> normalization="imagenet"
 
 Output:
     DataLoader for Simple CNN, Complex CNN and ResNet18
@@ -126,9 +126,9 @@ def create_zip_index(zip_path, members):
 # 4. RESIZE, AUGMENTATION AND NORMALIZATION
 # ============================================================
 
-def create_transform(model_type, training, image_size=IMAGE_SIZE):
-    if model_type not in ["scratch", "resnet18"]:
-        raise ValueError("model_type must be either scratch or resnet18.")
+def create_transform(normalization, training, image_size=IMAGE_SIZE):
+    if normalization not in ["none", "imagenet"]:
+        raise ValueError("normalization must be either none or imagenet.")
 
     steps = [
         transforms.Resize((image_size, image_size))
@@ -145,7 +145,7 @@ def create_transform(model_type, training, image_size=IMAGE_SIZE):
 
     steps.append(transforms.ToTensor())
 
-    if model_type == "resnet18":
+    if normalization == "imagenet":
         steps.append(
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
         )
@@ -204,7 +204,7 @@ class UTKFaceDataset(Dataset):
 # ============================================================
 
 def build_loaders(
-    model_type="scratch",
+    normalization="none",
     metadata_dir=METADATA_DIR,
     zip_path=ZIP_PATH,
     image_size=IMAGE_SIZE,
@@ -213,8 +213,6 @@ def build_loaders(
 ):
     if image_size < 32 or batch_size < 1:
         raise ValueError("image_size >= 32 and batch_size >= 1.")
-
-    set_seed(seed)
 
     splits = load_splits(metadata_dir)
 
@@ -225,7 +223,7 @@ def build_loaders(
 
     for name, data in splits.items():
         transform = create_transform(
-            model_type=model_type,
+            normalization=normalization,
             training=(name == "train"),
             image_size=image_size
         )
@@ -253,7 +251,7 @@ def build_loaders(
 # 7. CHECK BATCHES AND AUGMENTATION
 # ============================================================
 
-def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
+def check_batches(loaders, normalization, image_size=IMAGE_SIZE):
     for name, loader in loaders.items():
         batch = next(iter(loader))
         size = len(batch["member"])
@@ -270,11 +268,11 @@ def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
         assert batch["age"].ge(1).all() and batch["age"].le(116).all()
         assert ((batch["gender"] == 0) | (batch["gender"] == 1)).all()
 
-        if model_type == "scratch":
+        if normalization == "none":
             assert batch["image"].min() >= 0
             assert batch["image"].max() <= 1
 
-        print(model_type, name, tuple(batch["image"].shape))
+        print(normalization, name, tuple(batch["image"].shape))
 
     for name in ["val", "test"]:
         dataset = loaders[name].dataset
@@ -285,7 +283,7 @@ def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
         )
 
 
-def save_augmentation_preview(loader, model_type, output_path):
+def save_augmentation_preview(loader, normalization, output_path):
     dataset = loader.dataset
 
     figure, axes = plt.subplots(1, 4, figsize=(12, 3))
@@ -293,7 +291,7 @@ def save_augmentation_preview(loader, model_type, output_path):
     for axis in axes:
         image = dataset[0]["image"].permute(1, 2, 0)
 
-        if model_type == "resnet18":
+        if normalization == "imagenet":
             image = (
                 image * torch.tensor(IMAGENET_STD)
                 + torch.tensor(IMAGENET_MEAN)
@@ -319,8 +317,8 @@ def save_config(output_dir):
         "seed": SEED,
         "gender_encoding": {"0": "Male", "1": "Female"},
         "age_unit": "years",
-        "scratch": {"pixel_range": [0, 1]},
-        "resnet18": {
+        "normalization_none": {"pixel_range": [0, 1]},
+        "normalization_imagenet": {
             "pixel_range_before_normalize": [0, 1],
             "mean": IMAGENET_MEAN,
             "std": IMAGENET_STD
@@ -359,16 +357,16 @@ def main():
 
     save_config(run_dir)
 
-    for model_type in ["scratch", "resnet18"]:
-        loaders = build_loaders(model_type=model_type)
+    for normalization in ["none", "imagenet"]:
+        loaders = build_loaders(normalization=normalization)
 
         try:
-            check_batches(loaders, model_type)
+            check_batches(loaders, normalization)
 
             save_augmentation_preview(
                 loaders["train"],
-                model_type,
-                run_dir / f"augmentation_{model_type}.png"
+                normalization,
+                run_dir / f"augmentation_{normalization}.png"
             )
         finally:
             for loader in loaders.values():

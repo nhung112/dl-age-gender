@@ -1,0 +1,164 @@
+[
+  {
+    "epoch": 1,
+    "learning_rate": 0.001,
+    "seconds": 753.2352840999993,
+    "train": {
+      "loss": 6.579336412261615,
+      "age_mse_normalized": 0.034546926419953675,
+      "gender_cross_entropy": 0.6544789476576972,
+      "age_mae": 16.501227064026903,
+      "age_rmse": 21.560691922769944,
+      "gender_accuracy": 0.6121955753857594,
+      "gender_precision": 0.6102664458828843,
+      "gender_recall": 0.5249255470672018,
+      "gender_f1": 0.5643881386607267
+    },
+    "val": {
+      "loss": 6.036070524715425,
+      "age_mse_normalized": 0.030568373575375698,
+      "gender_cross_entropy": 0.600550218149718,
+      "age_mae": 14.885254420318516,
+      "age_rmse": 20.281223675671633,
+      "gender_accuracy": 0.6821862348178138,
+      "gender_precision": 0.6904598490048044,
+      "gender_recall": 0.6082224909310762,
+      "gender_f1": 0.6467373834779813
+    }
+  },
+  {
+    "epoch": 2,
+    "learning_rate": 0.001,
+    "seconds": 850.0930819000005,
+    "train": {
+      "loss": 5.8552671339592095,
+      "age_mse_normalized": 0.03021943069707729,
+      "gender_cross_entropy": 0.5825047710149891,
+      "age_mae": 15.44922052579512,
+      "age_rmse": 20.163932848625066,
+      "gender_accuracy": 0.6934374419036996,
+      "gender_precision": 0.6954929577464789,
+      "gender_recall": 0.6393888385342483,
+      "gender_f1": 0.6662618903056061
+    },
+    "val": {
+      "loss": 5.4986013935920885,
+      "age_mse_normalized": 0.028586746730500733,
+      "gender_cross_entropy": 0.5470014615442244,
+      "age_mae": 15.014857565205245,
+      "age_rmse": 19.612834127486853,
+      "gender_accuracy": 0.7212261422787739,
+      "gender_precision": 0.7075812274368231,
+      "gender_recall": 0.7110036275695284,
+      "gender_f1": 0.7092882991556091
+    }
+  },
+  {
+    "epoch": 3,
+    "learning_rate": 0.001,
+    "seconds": 943.2010969999992,
+    "train": {
+      "loss": 5.49825549480263,
+      "age_mse_normalized": 0.028784267210571906,
+      "gender_cross_entropy": 0.5469471231271928,
+      "age_mae": 15.089692045279046,
+      "age_rmse": 19.6804749861504,
+      "gender_accuracy": 0.7223771456900291,
+      "gender_precision": 0.7241188666205943,
+      "gender_recall": 0.6783633303120549,
+      "gender_f1": 0.70049471854526
+    },
+    "val": {
+      "loss": 5.800306088942334,
+      "age_mse_normalized": 0.030064204044127272,
+      "gender_cross_entropy": 0.5770241919713188,
+      "age_mae": 16.1187575380536,
+      "age_rmse": 20.113277252537436,
+      "gender_accuracy": 0.7032967032967034,
+      "gender_precision": 0.8536036036036037,
+      "gender_recall": 0.45828295042321643,
+      "gender_f1": 0.5963808025177026
+    }
+  },
+  {
+    "epoch": 4,
+    "learning_rate": 0.001,
+    "seconds": 895.1176505000003,
+    "train": {
+      "loss": 5.117045829868926,
+      "age_mse_normalized": 0.02768202673288543,
+      "gender_cross_entropy": 0.5089363797233104,
+      "age_mae": 14.75663118397295,
+      "age_rmse": 19.299585331758667,
+      "gender_accuracy": 0.7485901964429572,
+      "gender_precision": 0.7545833333333334,
+      "gender_recall": 0.7034831024213388,
+      "gender_f1": 0.7281377739060512
+    },
+    "val": {
+      "loss": 5.064937192694585,
+      "age_mse_normalized": 0.02714860198740293,
+      "gender_cross_entropy": 0.5037788594558517,
+      "age_mae": 15.25063485806908,
+      "age_rmse": 19.113126010737762,
+      "gender_accuracy": 0.7536148062463852,
+      "gender_precision": 0.8529929577464789,
+      "gender_recall": 0.5858524788391778,
+      "gender_f1": 0.6946236559139786
+    }
+  },
+  {
+    "epoch": 5,
+    "learning_rate": 0.001,
+    "seconds": 1668.7148379999999,
+    "train": {
+      "loss": 4.792694934040757,
+      "age_mse_normalized": 0.026387446117591716,
+      "gender_cross_entropy": 0.4766307476950215,
+      "age_mae": 14.465148039774846,
+      "age_rmse": 18.84323284751311,
+      "gender_accuracy": 0.7719526553882382,
+      "gender_precision": 0.7738046864418258,
+      "gender_recall": 0.7397384436099961,
+      "gender_f1": 0.7563881901231299
+    },
+    "val": {
+      "loss": 4.732370669197802,
+      "age_mse_normalized": 0.02552974960314807,
+      "gender_cross_entropy": 0.4706840917442216,
+      "age_mae": 13.837519244695413,
+      "age_rmse": 18.534516684656865,
+      "gender_accuracy": 0.7718334297281666,
+      "gender_precision": 0.7052681537731371,
+      "gender_recall": 0.898428053204353,
+      "gender_f1": 0.7902153682531242
+    }
+  },
+  {
+    "epoch": 6,
+    "learning_rate": 0.001,
+    "seconds": 2432.3414668000005,
+    "train": {
+      "loss": 4.451046969690102,
+      "age_mse_normalized": 0.025761099758137188,
+      "gender_cross_entropy": 0.4425285870112724,
+      "age_mae": 14.28931724055221,
+      "age_rmse": 18.618276879303494,
+      "gender_accuracy": 0.7950672367850282,
+      "gender_precision": 0.797654354273389,
+      "gender_recall": 0.7661530493331606,
+      "gender_f1": 0.7815864209761575
+    },
+    "val": {
+      "loss": 4.200025198844349,
+      "age_mse_normalized": 0.025311397626659925,
+      "gender_cross_entropy": 0.41747138078258245,
+      "age_mae": 13.810885147527161,
+      "age_rmse": 18.45508502535884,
+      "gender_accuracy": 0.810294968189705,
+      "gender_precision": 0.8403819918144612,
+      "gender_recall": 0.7448609431680774,
+      "gender_f1": 0.7897435897435898
+    }
+  }
+]
