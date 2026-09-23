@@ -1,0 +1,15 @@
+{
+  "metrics": {
+    "loss": 0.3267241687090902,
+    "age_mse_normalized": 0.007891617055167074,
+    "gender_cross_entropy": 0.24780799767708428,
+    "age_mae": 7.448952832846464,
+    "age_rmse": 10.256524710542884,
+    "gender_accuracy": 0.8924544666088465,
+    "gender_precision": 0.9063291139240506,
+    "gender_recall": 0.8647342995169082,
+    "gender_f1": 0.8850432632880099
+  },
+  "age_loss_weight": 10.0,
+  "gender_loss_weight": 1.0
+}

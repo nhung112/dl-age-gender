@@ -8,8 +8,8 @@ from torch import nn
 
 
 MAX_AGE = 116.0
-AGE_LOSS_WEIGHT = 1.0
-GENDER_LOSS_WEIGHT = 10.0
+AGE_LOSS_WEIGHT = 10.0
+GENDER_LOSS_WEIGHT = 1.0
 
 
 class MultitaskLoss(nn.Module):

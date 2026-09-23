@@ -9,7 +9,7 @@ from explainability import (
     select_gradcam_indices
 )
 from models.simple_cnn import SimpleCNN
-from preprocessing import SEED, build_loaders, set_seed
+from preprocessing import SEED, build_loaders
 from training import MAX_AGE, train_model
 
 
@@ -34,7 +34,9 @@ def select_device():
 
 def close_datasets(loaders):
     for loader in loaders.values():
-        loader.dataset.close()
+        close_method = getattr(loader.dataset, "close", None)
+        if callable(close_method):
+            close_method()
 
 
 def parse_args():
@@ -50,7 +52,6 @@ def parse_args():
 def main():
     args = parse_args()
     device = select_device()
-    set_seed(SEED)
     loaders = build_loaders(
         normalization="none",
         image_size=IMAGE_SIZE,

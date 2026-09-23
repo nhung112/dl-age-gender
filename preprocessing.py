@@ -214,6 +214,8 @@ def build_loaders(
     if image_size < 32 or batch_size < 1:
         raise ValueError("image_size >= 32 and batch_size >= 1.")
 
+    set_seed(seed)
+
     splits = load_splits(metadata_dir)
 
     members = pd.concat(splits.values())["member"]
