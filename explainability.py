@@ -73,9 +73,12 @@ def save_gradcam_visualization(
     selected_indices,
     target_layer,
     max_age,
-    normalization="none"
+    model_type="scratch"
 ):
     import matplotlib.pyplot as plt
+
+    if model_type not in ("scratch", "resnet18"):
+        raise ValueError("model_type must be either scratch or resnet18.")
 
     samples = [loader.dataset[index] for index in selected_indices]
     images = torch.stack([sample["image"] for sample in samples]).to(device)
@@ -113,7 +116,7 @@ def save_gradcam_visualization(
         if index >= len(images):
             continue
         image = images[index].detach().cpu().permute(1, 2, 0)
-        if normalization == "imagenet":
+        if model_type == "resnet18":
             mean = torch.tensor(IMAGENET_MEAN)
             std = torch.tensor(IMAGENET_STD)
             image = image * std + mean

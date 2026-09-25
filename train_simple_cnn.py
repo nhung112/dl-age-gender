@@ -40,7 +40,9 @@ def close_datasets(loaders):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Train Simple CNN for UTKFace age and gender prediction"
+    )
     parser.add_argument("--epochs", type=int, default=MAX_EPOCHS)
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
@@ -53,12 +55,13 @@ def main():
     args = parse_args()
     device = select_device()
     loaders = build_loaders(
-        normalization="none",
+        model_type="scratch",
         image_size=IMAGE_SIZE,
         batch_size=args.batch_size,
         seed=SEED
     )
     model = SimpleCNN().to(device)
+    
     try:
         _, checkpoint_path = train_model(
             model=model,
@@ -99,7 +102,7 @@ def main():
                 selected_indices=gradcam_indices,
                 target_layer=model.get_gradcam_layer(),
                 max_age=MAX_AGE,
-                normalization="none"
+                model_type="scratch"
             )
     finally:
         close_datasets(loaders)
