@@ -60,7 +60,7 @@ def main():
     args = parse_args()
     device = select_device()
     loaders = build_loaders(
-        normalization="none",
+        normalization="None",
         image_size=IMAGE_SIZE,
         batch_size=args.batch_size,
         seed=SEED
