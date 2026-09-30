@@ -1,35 +1,10 @@
-"""
-UTKFace Image Preprocessing Pipeline
-
-Pipeline:
-1. Load and validate the existing Train / Validation / Test metadata
-2. Validate that every metadata member exists in the ZIP archive
-3. Resize, augment and normalize images during loading
-4. Build PyTorch Dataset and DataLoader objects
-
-Preprocessing:
-    Simple CNN  -> Resize, augmentation and pixel scaling to [0, 1]
-    Complex CNN -> Resize, augmentation and pixel scaling to [0, 1]
-    ResNet18    -> Resize, augmentation and ImageNet normalization
-
-Output:
-    DataLoader for Simple CNN, Complex CNN and ResNet18
-    Preprocessing configuration and augmentation previews
-
-Target:
-    Age    -> Regression
-    Gender -> Binary classification (0 = Male, 1 = Female)
-"""
-
 from pathlib import Path
 from io import BytesIO
 from zipfile import ZipFile
 import hashlib
 import json
-import random
 import tempfile
 
-import numpy as np
 import pandas as pd
 from PIL import Image
 
@@ -38,10 +13,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
-
-# ============================================================
 # 1. CONFIGURATION
-# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -51,7 +23,6 @@ OUTPUT_DIR = PROJECT_ROOT / "data/preprocessing"
 
 IMAGE_SIZE = 224
 BATCH_SIZE = 32
-SEED = 42
 
 SPLIT_NAMES = ("train", "val", "test")
 COLUMNS = ["member", "age", "gender", "race"]
@@ -59,22 +30,7 @@ COLUMNS = ["member", "age", "gender", "race"]
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
-
-def set_seed(seed=SEED):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-
-
-# ============================================================
 # 2. LOAD AND VALIDATE SPLITS FROM FILE 1
-# ============================================================
 
 def load_splits(metadata_dir=METADATA_DIR):
     metadata_dir = Path(metadata_dir)
@@ -93,10 +49,7 @@ def load_splits(metadata_dir=METADATA_DIR):
         for split in SPLIT_NAMES
     }
 
-
-# ============================================================
 # 3. FIND IMAGES IN ZIP
-# ============================================================
 
 def create_zip_index(zip_path, members):
     zip_path = Path(zip_path)
@@ -121,10 +74,7 @@ def create_zip_index(zip_path, members):
 
     return {member: member for member in requested_members}
 
-
-# ============================================================
 # 4. RESIZE, AUGMENTATION AND NORMALIZATION
-# ============================================================
 
 def create_transform(model_type, training, image_size=IMAGE_SIZE):
     if model_type not in ["scratch", "resnet18"]:
@@ -152,10 +102,7 @@ def create_transform(model_type, training, image_size=IMAGE_SIZE):
 
     return transforms.Compose(steps)
 
-
-# ============================================================
 # 5. DATASET: READ AN IMAGE AND ITS LABELS
-# ============================================================
 
 class UTKFaceDataset(Dataset):
     def __init__(self, data, zip_path, index, transform):
@@ -198,23 +145,17 @@ class UTKFaceDataset(Dataset):
             self.archive.close()
             self.archive = None
 
-
-# ============================================================
 # 6. DATALOADER: GROUP IMAGES INTO BATCHES
-# ============================================================
 
 def build_loaders(
     model_type="scratch",
     metadata_dir=METADATA_DIR,
     zip_path=ZIP_PATH,
     image_size=IMAGE_SIZE,
-    batch_size=BATCH_SIZE,
-    seed=SEED
+    batch_size=BATCH_SIZE
 ):
     if image_size < 32 or batch_size < 1:
         raise ValueError("image_size >= 32 and batch_size >= 1.")
-
-    set_seed(seed)
 
     splits = load_splits(metadata_dir)
 
@@ -242,16 +183,12 @@ def build_loaders(
             batch_size=batch_size,
             shuffle=(name == "train"),
             drop_last=False,
-            num_workers=0,
-            generator=torch.Generator().manual_seed(seed)
+            num_workers=2
         )
 
     return loaders
 
-
-# ============================================================
 # 7. CHECK BATCHES AND AUGMENTATION
-# ============================================================
 
 def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
     for name, loader in loaders.items():
@@ -306,17 +243,13 @@ def save_augmentation_preview(loader, model_type, output_path):
     figure.savefig(output_path, dpi=150)
     plt.close(figure)
 
-
-# ============================================================
 # 8. SAVE CONFIGURATION FOR INFERENCE TO MATCH TRAINING
-# ============================================================
 
 def save_config(output_dir):
     config = {
         "image_size": [IMAGE_SIZE, IMAGE_SIZE],
         "color": "RGB",
         "batch_size": BATCH_SIZE,
-        "seed": SEED,
         "gender_encoding": {"0": "Male", "1": "Female"},
         "age_unit": "years",
         "scratch": {"pixel_range": [0, 1]},
@@ -346,10 +279,7 @@ def save_config(output_dir):
         encoding="utf-8"
     )
 
-
-# ============================================================
 # 9. RUN FULL PREPROCESSING
-# ============================================================
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
