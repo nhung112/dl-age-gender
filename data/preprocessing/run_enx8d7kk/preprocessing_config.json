@@ -5,7 +5,6 @@
   ],
   "color": "RGB",
   "batch_size": 32,
-  "seed": 42,
   "gender_encoding": {
     "0": "Male",
     "1": "Female"
