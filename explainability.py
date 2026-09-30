@@ -35,7 +35,7 @@ def compute_gradcam(model, images, target, target_layer):
         hook.remove()
 
 
-def select_gradcam_indices(loader, selection_path, sample_count, seed):
+def select_gradcam_indices(loader, selection_path, sample_count):
     dataset = loader.dataset
     members = [str(member) for member in dataset.data["member"]]
     member_to_index = {
@@ -46,13 +46,12 @@ def select_gradcam_indices(loader, selection_path, sample_count, seed):
             selection_path.read_text(encoding="utf-8")
         )["members"]
     else:
-        generator = torch.Generator().manual_seed(seed)
         selected_indices = torch.randperm(
-            len(dataset), generator=generator
+            len(dataset)
         )[:min(sample_count, len(dataset))].tolist()
         selected_members = [members[index] for index in selected_indices]
         selection_path.write_text(
-            json.dumps({"seed": seed, "members": selected_members}, indent=2),
+            json.dumps({"members": selected_members}, indent=2),
             encoding="utf-8"
         )
     missing_members = [
