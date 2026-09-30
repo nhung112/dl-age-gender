@@ -9,7 +9,7 @@ from explainability import (
     select_gradcam_indices
 )
 from models.simple_cnn import SimpleCNN
-from preprocessing import SEED, build_loaders
+from preprocessing import build_loaders
 from training import MAX_AGE, train_model
 
 
@@ -57,8 +57,7 @@ def main():
     loaders = build_loaders(
         model_type="scratch",
         image_size=IMAGE_SIZE,
-        batch_size=args.batch_size,
-        seed=SEED
+        batch_size=args.batch_size
     )
     model = SimpleCNN().to(device)
     
@@ -89,8 +88,7 @@ def main():
         gradcam_indices = select_gradcam_indices(
             loader=loaders["val"],
             selection_path=OUTPUT_DIR / "gradcam_samples.json",
-            sample_count=GRADCAM_SAMPLE_COUNT,
-            seed=SEED
+            sample_count=GRADCAM_SAMPLE_COUNT
         )
         for target_name in ["age", "gender"]:
             save_gradcam_visualization(
