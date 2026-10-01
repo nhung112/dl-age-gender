@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from PIL import Image
 
+from age_config import AGE_LABELS
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -112,41 +114,48 @@ def univariate_age(metadata):
     print(f"IQR outlier bounds : [{lower:.1f}, {upper:.1f}]")
     print(f"IQR outlier count  : {len(outliers):,} ({len(outliers)/len(metadata)*100:.2f}%)")
 
-def age_bin_table(metadata, bin_width=10):
-    max_age = int(metadata["age"].max())
-    bins = list(range(0, max_age + bin_width, bin_width))
-    labels = [f"{b}-{b + bin_width - 1}" for b in bins[:-1]]
-
-    binned = pd.cut(
-        metadata["age"], bins=bins, labels=labels, right=False, include_lowest=True
+def age_class_table(metadata):
+    counts = (
+        metadata["age_class"]
+        .value_counts()
+        .reindex(range(len(AGE_LABELS)), fill_value=0)
     )
-    counts = binned.value_counts().sort_index()
-    pct = (counts / counts.sum() * 100).round(2)
+    percentages = counts / counts.sum() * 100
 
-    table = pd.DataFrame({"count": counts, "pct": pct})
+    table = pd.DataFrame({
+        "count": counts,
+        "pct": percentages.round(2),
+    })
+    table.index = AGE_LABELS
 
     plt.figure(figsize=(10, 5))
-    ax = sns.barplot(x=table.index, y=table["count"], color="#4C72B0")
-    plt.title(f"Sample count per {bin_width}-year age bin")
+    ax = sns.barplot(
+        x=table.index,
+        y=table["count"].values,
+        color="#4C72B0"
+    )
+    plt.title("Sample count per age class")
+    plt.xlabel("Age class")
     plt.ylabel("Count")
-    plt.xlabel("Age bin")
-    plt.xticks(rotation=45)
-    for i, (cnt, p) in enumerate(zip(table["count"], table["pct"])):
-        ax.text(i, cnt, f"{cnt}\n({p}%)", ha="center", va="bottom", fontsize=8)
+    for index, (count, percentage) in enumerate(
+        zip(table["count"], table["pct"])
+    ):
+        ax.text(
+            index,
+            count,
+            f"{count:,}\n({percentage:.2f}%)",
+            ha="center",
+            va="bottom",
+            fontsize=8
+        )
     plt.tight_layout()
-    plt.savefig(FIGURES_DIR / "02_age_bin_table.png", dpi=150)
+    plt.savefig(FIGURES_DIR / "02_age_class_distribution.png", dpi=150)
     plt.close()
 
-    threshold_pct = 2.0
-    thin_bins = table[table["pct"] < threshold_pct]
-
     print("\n" + "=" * 60)
-    print(f"AGE BIN TABLE (bin width = {bin_width} years)")
+    print("AGE CLASS DISTRIBUTION")
     print("=" * 60)
     print(table)
-    print(f"\nBins under {threshold_pct}% of total data (weak, watch model performance here):")
-    print(thin_bins if len(thin_bins) else "  (none)")
-
     return table
 
 
@@ -490,7 +499,7 @@ def main():
     overview_stats = overview(clean)
 
     univariate_age(clean)
-    age_bin_table(clean)
+    age_class_table(clean)
     univariate_gender(clean)
     univariate_race(clean)
 

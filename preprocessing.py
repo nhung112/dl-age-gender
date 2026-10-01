@@ -3,7 +3,6 @@ from io import BytesIO
 from zipfile import ZipFile
 import hashlib
 import json
-import tempfile
 
 import pandas as pd
 from PIL import Image
@@ -12,8 +11,8 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import matplotlib.pyplot as plt
+from age_config import AGE_LABELS, NUM_AGE_CLASSES
 
-# 1. CONFIGURATION
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -25,12 +24,11 @@ IMAGE_SIZE = 224
 BATCH_SIZE = 32
 
 SPLIT_NAMES = ("train", "val", "test")
-COLUMNS = ["member", "age", "gender", "race"]
+COLUMNS = ["member", "age_class", "gender", "race"]
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
-# 2. LOAD AND VALIDATE SPLITS FROM FILE 1
 
 def load_splits(metadata_dir=METADATA_DIR):
     metadata_dir = Path(metadata_dir)
@@ -41,7 +39,7 @@ def load_splits(metadata_dir=METADATA_DIR):
             usecols=list(COLUMNS),
             dtype={
                 "member": "string",
-                "age": "float32",
+                "age_class": "int64",
                 "gender": "int64"
             },
             encoding="utf-8-sig"
@@ -49,7 +47,6 @@ def load_splits(metadata_dir=METADATA_DIR):
         for split in SPLIT_NAMES
     }
 
-# 3. FIND IMAGES IN ZIP
 
 def create_zip_index(zip_path, members):
     zip_path = Path(zip_path)
@@ -74,7 +71,6 @@ def create_zip_index(zip_path, members):
 
     return {member: member for member in requested_members}
 
-# 4. RESIZE, AUGMENTATION AND NORMALIZATION
 
 def create_transform(model_type, training, image_size=IMAGE_SIZE):
     if model_type not in ["scratch", "resnet18"]:
@@ -102,7 +98,6 @@ def create_transform(model_type, training, image_size=IMAGE_SIZE):
 
     return transforms.Compose(steps)
 
-# 5. DATASET: READ AN IMAGE AND ITS LABELS
 
 class UTKFaceDataset(Dataset):
     def __init__(self, data, zip_path, index, transform):
@@ -129,9 +124,9 @@ class UTKFaceDataset(Dataset):
 
         return {
             "image": image,
-            "age": torch.tensor(
-                [float(row["age"])],
-                dtype=torch.float32
+            "age_class": torch.tensor(
+                int(row["age_class"]),
+                dtype=torch.long
             ),
             "gender": torch.tensor(
                 int(row["gender"]),
@@ -145,7 +140,6 @@ class UTKFaceDataset(Dataset):
             self.archive.close()
             self.archive = None
 
-# 6. DATALOADER: GROUP IMAGES INTO BATCHES
 
 def build_loaders(
     model_type="scratch",
@@ -188,7 +182,6 @@ def build_loaders(
 
     return loaders
 
-# 7. CHECK BATCHES AND AUGMENTATION
 
 def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
     for name, loader in loaders.items():
@@ -196,15 +189,16 @@ def check_batches(loaders, model_type, image_size=IMAGE_SIZE):
         size = len(batch["member"])
 
         assert batch["image"].shape == (size, 3, image_size, image_size)
-        assert batch["age"].shape == (size, 1)
+        assert batch["age_class"].shape == (size,)
         assert batch["gender"].shape == (size,)
 
         assert batch["image"].dtype == torch.float32
-        assert batch["age"].dtype == torch.float32
+        assert batch["age_class"].dtype == torch.int64
         assert batch["gender"].dtype == torch.int64
 
         assert torch.isfinite(batch["image"]).all()
-        assert batch["age"].ge(1).all() and batch["age"].le(116).all()
+        assert batch["age_class"].ge(0).all()
+        assert batch["age_class"].lt(NUM_AGE_CLASSES).all()
         assert ((batch["gender"] == 0) | (batch["gender"] == 1)).all()
 
         if model_type == "scratch":
@@ -243,7 +237,6 @@ def save_augmentation_preview(loader, model_type, output_path):
     figure.savefig(output_path, dpi=150)
     plt.close(figure)
 
-# 8. SAVE CONFIGURATION FOR INFERENCE TO MATCH TRAINING
 
 def save_config(output_dir):
     config = {
@@ -251,7 +244,9 @@ def save_config(output_dir):
         "color": "RGB",
         "batch_size": BATCH_SIZE,
         "gender_encoding": {"0": "Male", "1": "Female"},
-        "age_unit": "years",
+        "age_target": "age_class",
+        "age_labels": AGE_LABELS,
+        "age_num_classes": NUM_AGE_CLASSES,
         "scratch": {"pixel_range": [0, 1]},
         "resnet18": {
             "pixel_range_before_normalize": [0, 1],
@@ -279,15 +274,10 @@ def save_config(output_dir):
         encoding="utf-8"
     )
 
-# 9. RUN FULL PREPROCESSING
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    run_dir = Path(
-        tempfile.mkdtemp(prefix="run_", dir=OUTPUT_DIR)
-    )
-
-    save_config(run_dir)
+    save_config(OUTPUT_DIR)
 
     for model_type in ["scratch", "resnet18"]:
         loaders = build_loaders(model_type=model_type)
@@ -298,15 +288,14 @@ def main():
             save_augmentation_preview(
                 loaders["train"],
                 model_type,
-                run_dir / f"augmentation_{model_type}.png"
+                OUTPUT_DIR / f"augmentation_{model_type}.png"
             )
         finally:
             for loader in loaders.values():
                 loader.dataset.close()
 
     print("Preprocessing completed.")
-    print("Output:", run_dir)
-    print("Create new DataLoader before training each model.")
+    print("Output:", OUTPUT_DIR)
 
 
 if __name__ == "__main__":

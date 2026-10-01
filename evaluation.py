@@ -13,13 +13,15 @@ def evaluate_test(
     model,
     test_loader,
     device,
-    output_dir
+    output_dir,
+    age_class_weights=None
 ):
     """Evaluate a loaded best checkpoint once on the untouched test split."""
     metrics = run_epoch(
         model=model,
         loader=test_loader,
         criterion=MultitaskLoss(
+            age_class_weights=age_class_weights,
             age_weight=AGE_LOSS_WEIGHT,
             gender_weight=GENDER_LOSS_WEIGHT
         ),
@@ -35,6 +37,14 @@ def evaluate_test(
         output_dir / "test_metrics.json"
     )
     return metrics
+
+
+def print_metrics(metrics):
+    for name, value in metrics.items():
+        if isinstance(value, (int, float)):
+            print(f"{name}: {value:.4f}")
+        else:
+            print(f"{name}: {value}")
 
 
 def load_best_checkpoint(model, checkpoint_path, device):

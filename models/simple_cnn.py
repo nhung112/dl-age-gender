@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 
+from age_config import NUM_AGE_CLASSES
+
 
 class SimpleCNN(nn.Module):
     def __init__(self):
@@ -21,7 +23,7 @@ class SimpleCNN(nn.Module):
             nn.Linear(64, 128),
             nn.ReLU(inplace=True)
         )
-        self.age_head = nn.Linear(128, 1)
+        self.age_head = nn.Linear(128, NUM_AGE_CLASSES)
         self.gender_head = nn.Linear(128, 2)
         self._initialize_weights()
 

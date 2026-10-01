@@ -9,7 +9,16 @@
     "0": "Male",
     "1": "Female"
   },
-  "age_unit": "years",
+  "age_target": "age_class",
+  "age_labels": [
+    "0-12",
+    "13-19",
+    "20-29",
+    "30-39",
+    "40-54",
+    "55+"
+  ],
+  "age_num_classes": 6,
   "scratch": {
     "pixel_range": [
       0,
@@ -40,8 +49,8 @@
   "validation_test_augmentation": false,
   "identity_disjoint_verified": false,
   "split_sha256": {
-    "train": "c356b559672aab0530aeda60012f125b5a606d13369c546e95a84e5a574745aa",
-    "val": "c38d64a18e86b804c4eda023050c832f0278850419b0751949c3952c2221fb2e",
-    "test": "b55aa87b60484391a3b0bda66d5aa2ce0ae394621fd62260cceea6d9240d73cd"
+    "train": "2ae8603c811e43fa0a99f01f8cc6144976ad8ea7a67f0a05c7d790d70d420b30",
+    "val": "40e7091ec23f7d7b2a8a962399bb6902490e1877a2cc55c4660838fddc631345",
+    "test": "27bb7d8784dc04f65b9efaae65b29daef7e7f48bc6c5381e9f9ae38307c209a8"
   }
 }

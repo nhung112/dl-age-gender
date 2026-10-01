@@ -1,20 +1,3 @@
-"""
-UTKFace Data Preparation Pipeline
-
-Pipeline:
-1. Dataset inspection
-2. Parse labels from filename
-3. Data cleaning
-4. Train / Validation / Test split
-
-Processed images are NOT duplicated on disk.
-Metadata and split information are stored as CSV files.
-
-Target:
-    Age    -> Regression
-    Gender -> Binary classification (0 = Male, 1 = Female)
-"""
-
 import pandas as pd
 import re
 from pathlib import Path
@@ -23,10 +6,8 @@ from hashlib import sha256
 from zipfile import ZipFile
 from PIL import Image
 from sklearn.model_selection import train_test_split
+from age_config import age_to_class
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -35,24 +16,22 @@ METADATA_DIR = PROJECT_ROOT / "data" / "metadata"
 
 IMAGE_SIZE = (224, 224)
 RANDOM_STATE = 42
-STRATIFY_BY_AGE = True
 
 TRAIN_RATIO = 0.70
 VAL_RATIO = 0.15
 TEST_RATIO = 0.15
 
-METADATA_COLUMNS = ["member", "age", "gender", "race", "date"]
+METADATA_COLUMNS = [
+    "member",
+    "age",
+    "age_class",
+    "gender",
+    "race",
+    "date",
+]
 LABEL_COLUMNS = ["age", "gender", "race"]
 
-# ============================================================
-# DIRECTORY SETUP
-# ============================================================
-
 METADATA_DIR.mkdir(parents=True, exist_ok=True)
-
-# ============================================================
-# 1. DATASET INSPECTION + METADATA EXTRACTION
-# ============================================================
 
 def inspect_dataset():
     records = []
@@ -169,9 +148,6 @@ def inspect_dataset():
 
     return metadata
 
-# ============================================================
-# 2. DATA CLEANING
-# ============================================================
 
 def clean_metadata(metadata):
     before = len(metadata)
@@ -199,6 +175,7 @@ def clean_metadata(metadata):
     clean = clean.drop_duplicates(subset="sha256", keep="first").copy()
 
     clean["age"] = clean["age"].astype("int64")
+    clean["age_class"] = clean["age"].apply(age_to_class).astype("int64")
     clean["gender"] = clean["gender"].astype("int64")
     clean["race"] = clean["race"].astype("int64")
     clean["date"] = pd.to_datetime(clean["date"])
@@ -222,29 +199,16 @@ def clean_metadata(metadata):
 
     return clean
 
-# ============================================================
-# 3. TRAIN / VALIDATION / TEST SPLIT
-# ============================================================
 
 def create_splits(metadata):
-    stratify_labels = metadata["gender"].astype(str)
+    stratify_labels = metadata.groupby(
+        ["age_class", "gender"]
+    ).ngroup().astype(str)
 
-    if STRATIFY_BY_AGE:
-        age_bins = [0, 18, 30, 45, 60, float("inf")]
-        age_labels = ["0-17", "18-29", "30-44", "45-59", "60+"]
-        age_groups = pd.cut(
-            metadata["age"],
-            bins=age_bins,
-            labels=age_labels,
-            right=False
-        )
-        stratify_labels = age_groups.astype(str) + "_" + stratify_labels
-
-    label_counts = stratify_labels.value_counts()
-    if label_counts.min() < 2:
+    if stratify_labels.value_counts().min() < 2:
         raise ValueError(
             "Stratification groups must contain at least two samples. "
-            "Set STRATIFY_BY_AGE = False or use wider age bins."
+            "Use wider age bins or disable age-gender stratification."
         )
 
     train, temp = train_test_split(
@@ -254,19 +218,11 @@ def create_splits(metadata):
         stratify=stratify_labels
     )
 
-    relative_test_ratio = TEST_RATIO / (
-        VAL_RATIO + TEST_RATIO
-    )
+    relative_test_ratio = TEST_RATIO / (VAL_RATIO + TEST_RATIO)
 
-    temp_stratify_labels = stratify_labels.loc[temp.index].copy()
-    rare_temp_groups = set(
-        temp_stratify_labels.value_counts().loc[lambda counts: counts < 2].index
-    )
-    if rare_temp_groups:
-        temp_stratify_labels = temp_stratify_labels.where(
-            ~temp_stratify_labels.isin(rare_temp_groups),
-            temp["gender"].astype(str)
-        )
+    temp_stratify_labels = stratify_labels.loc[temp.index]
+    if temp_stratify_labels.value_counts().min() < 2:
+        temp_stratify_labels = temp["gender"].astype(str)
 
     val, test = train_test_split(
         temp,
@@ -327,9 +283,6 @@ def create_splits(metadata):
 
     return train, val, test
 
-# ============================================================
-# 4. PIPELINE COMPLETION
-# ============================================================
 
 def main():
     print("=" * 60)

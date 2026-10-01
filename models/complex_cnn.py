@@ -1,5 +1,7 @@
 from torch import nn
 
+from age_config import NUM_AGE_CLASSES
+
 
 class ResidualBlock(nn.Module):
 
@@ -81,7 +83,7 @@ class ComplexCNN(nn.Module):
             nn.Linear(512, 256),
             nn.ReLU(inplace=True),
             nn.Dropout(dropout),
-            nn.Linear(256, 1)
+            nn.Linear(256, NUM_AGE_CLASSES)
         )
         self.gender_head = nn.Sequential(
             nn.Linear(512, 256),
@@ -100,7 +102,7 @@ class ComplexCNN(nn.Module):
         gender_features = self.pool(self.gender_branch(shared)).flatten(1)
 
         return {
-            "age": self.age_head(age_features),          # (B, 1), tuổi/116
+            "age": self.age_head(age_features),          # (B, 6), age-class logits
             "gender": self.gender_head(gender_features)  # (B, 2), logits
         }
 

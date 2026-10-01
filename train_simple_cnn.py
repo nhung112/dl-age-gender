@@ -1,16 +1,15 @@
 import argparse
 from pathlib import Path
-
 import torch
 
-from evaluation import evaluate_test, load_best_checkpoint
+from evaluation import evaluate_test, load_best_checkpoint, print_metrics
 from explainability import (
     save_gradcam_visualization,
     select_gradcam_indices
 )
 from models.simple_cnn import SimpleCNN
 from preprocessing import build_loaders
-from training import MAX_AGE, train_model
+from training import compute_age_class_weights, train_model
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -18,7 +17,7 @@ OUTPUT_DIR = PROJECT_ROOT / "data" / "models" / "simple_cnn"
 IMAGE_SIZE = 224
 BATCH_SIZE = 32
 MAX_EPOCHS = 30
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 3e-4
 WEIGHT_DECAY = 1e-4
 PATIENCE = 5
 GRADCAM_SAMPLE_COUNT = 8
@@ -60,6 +59,7 @@ def main():
         batch_size=args.batch_size
     )
     model = SimpleCNN().to(device)
+    age_class_weights = compute_age_class_weights(loaders["train"], device)
     
     try:
         _, checkpoint_path = train_model(
@@ -72,18 +72,19 @@ def main():
             max_epochs=args.epochs,
             learning_rate=args.learning_rate,
             weight_decay=args.weight_decay,
-            patience=args.patience
+            patience=args.patience,
+            age_class_weights=age_class_weights
         )
         load_best_checkpoint(model, checkpoint_path, device)
         test_metrics = evaluate_test(
             model,
             loaders["test"],
             device,
-            OUTPUT_DIR
+            OUTPUT_DIR,
+            age_class_weights=age_class_weights
         )
         print("Test metrics:")
-        for name, value in test_metrics.items():
-            print(f"{name}: {value:.4f}")
+        print_metrics(test_metrics)
 
         gradcam_indices = select_gradcam_indices(
             loader=loaders["val"],
@@ -99,7 +100,6 @@ def main():
                 target_name=target_name,
                 selected_indices=gradcam_indices,
                 target_layer=model.get_gradcam_layer(),
-                max_age=MAX_AGE,
                 model_type="scratch"
             )
     finally:
