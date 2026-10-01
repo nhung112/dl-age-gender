@@ -3,8 +3,6 @@ from torch import nn
 
 
 class SimpleCNN(nn.Module):
-    """Four convolution blocks followed by age and gender heads."""
-
     def __init__(self):
         super().__init__()
         self.features = nn.Sequential(
@@ -16,14 +14,11 @@ class SimpleCNN(nn.Module):
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.ReLU(inplace=True),
             nn.MaxPool2d(2)
         )
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.shared_fc = nn.Sequential(
-            nn.Linear(128, 128),
+            nn.Linear(64, 128),
             nn.ReLU(inplace=True)
         )
         self.age_head = nn.Linear(128, 1)
@@ -60,4 +55,4 @@ class SimpleCNN(nn.Module):
 
     def get_gradcam_layer(self):
         """Return the convolution layer used by Grad-CAM."""
-        return self.features[9]
+        return self.features[6]
