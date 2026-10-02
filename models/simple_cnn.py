@@ -8,19 +8,19 @@ class SimpleCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv2d(3, 16, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, 3, padding=1),
+            nn.Conv2d(3, 32, 3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(2)
         )
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.shared_fc = nn.Sequential(
-            nn.Linear(64, 128),
+            nn.Linear(128, 128),
             nn.ReLU(inplace=True)
         )
         self.age_head = nn.Linear(128, NUM_AGE_CLASSES)
@@ -57,4 +57,4 @@ class SimpleCNN(nn.Module):
 
     def get_gradcam_layer(self):
         """Return the convolution layer used by Grad-CAM."""
-        return self.features[6]
+        return self.features[8]

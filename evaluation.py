@@ -14,7 +14,8 @@ def evaluate_test(
     test_loader,
     device,
     output_dir,
-    age_class_weights=None
+    age_class_weights=None,
+    checkpoint_config=None
 ):
     """Evaluate a loaded best checkpoint once on the untouched test split."""
     metrics = run_epoch(
@@ -31,6 +32,8 @@ def evaluate_test(
     save_json(
         {
             "metrics": metrics,
+            "optimizer": (checkpoint_config or {}).get("optimizer"),
+            "scheduler": (checkpoint_config or {}).get("scheduler"),
             "age_loss_weight": AGE_LOSS_WEIGHT,
             "gender_loss_weight": GENDER_LOSS_WEIGHT
         },

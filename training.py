@@ -121,7 +121,6 @@ class EpochMetrics:
             2 * age_precision * age_recall
             / (age_precision + age_recall).clamp_min(1e-8)
         )
-        age_support = actual_age / actual_age.sum().clamp_min(1)
 
         return {
             "loss": self.total_loss / self.samples,
@@ -130,7 +129,7 @@ class EpochMetrics:
             "age_accuracy": self.correct_age / self.samples,
             "age_balanced_accuracy": age_recall.mean().item(),
             "age_macro_f1": age_f1.mean().item(),
-            "age_weighted_f1": (age_f1 * age_support).sum().item(),
+            "age_recall_per_class": age_recall.tolist(),
             "age_confusion_matrix": self.age_confusion.tolist(),
             "gender_accuracy": self.correct_gender / self.samples,
             "gender_f1": f1
@@ -187,7 +186,10 @@ def compute_age_class_weights(train_loader, device):
         dtype=torch.long
     )
     counts = torch.bincount(labels, minlength=NUM_AGE_CLASSES).float()
-    weights = counts.sum() / (NUM_AGE_CLASSES * counts.clamp_min(1))
+    inverse_frequency = counts.sum() / (
+        NUM_AGE_CLASSES * counts.clamp_min(1)
+    )
+    weights = inverse_frequency.sqrt()
     return (weights / weights.mean()).to(device)
 
 
@@ -228,11 +230,11 @@ def train_model(
         age_weight=AGE_LOSS_WEIGHT,
         gender_weight=GENDER_LOSS_WEIGHT
     )
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=2, min_lr=1e-6
+        optimizer, mode="max", factor=0.5, patience=3, min_lr=1e-6
     )
     config = {
         "model": model_name,
@@ -240,6 +242,18 @@ def train_model(
         "max_epochs": max_epochs,
         "learning_rate": learning_rate,
         "weight_decay": weight_decay,
+        "optimizer": {
+            "name": optimizer.__class__.__name__,
+            "learning_rate": learning_rate,
+            "weight_decay": weight_decay
+        },
+        "scheduler": {
+            "name": scheduler.__class__.__name__,
+            "mode": "max",
+            "factor": 0.5,
+            "patience": 4,
+            "min_lr": 1e-6
+        },
         "early_stopping_patience": patience,
         "age_labels": AGE_LABELS,
         "age_loss": "weighted CrossEntropyLoss",
@@ -262,7 +276,7 @@ def train_model(
             optimizer
         )
         val_metrics = run_epoch(model, val_loader, criterion, device)
-        scheduler.step(val_metrics["loss"])
+        scheduler.step(val_metrics["age_macro_f1"])
         history.append({
             "epoch": epoch,
             "learning_rate": optimizer.param_groups[0]["lr"],
@@ -285,7 +299,7 @@ def train_model(
             f"train_loss={train_metrics['loss']:.4f} | "
             f"val_loss={val_metrics['loss']:.4f} | "
             f"val_age_macro_f1={val_metrics['age_macro_f1']:.4f} | "
-            f"val_gender_accuracy={val_metrics['gender_accuracy']:.4f} | "
+            f"val_gender_acc={val_metrics['gender_accuracy']:.4f} | "
             f"lr={optimizer.param_groups[0]['lr']:.2e} | "
         )
         

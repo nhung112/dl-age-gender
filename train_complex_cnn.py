@@ -18,7 +18,7 @@ GRADCAM_SELECTION_PATH = OUTPUT_DIR / "gradcam_samples.json"
 IMAGE_SIZE = 224
 BATCH_SIZE = 32
 MAX_EPOCHS = 30
-LEARNING_RATE = 3e-4   # dùng LR như SimpleCNN
+LEARNING_RATE = 1e-3   # dùng LR như SimpleCNN
 WEIGHT_DECAY = 1e-4
 PATIENCE = 5
 GRADCAM_SAMPLE_COUNT = 8
@@ -74,13 +74,14 @@ def main():
             patience=args.patience,
             age_class_weights=age_class_weights
         )
-        load_best_checkpoint(model, checkpoint_path, device)
+        checkpoint = load_best_checkpoint(model, checkpoint_path, device)
         test_metrics = evaluate_test(
             model,
             loaders["test"],
             device,
             OUTPUT_DIR,
-            age_class_weights=age_class_weights
+            age_class_weights=age_class_weights,
+            checkpoint_config=checkpoint.get("config")
         )
         print("Test metrics:")
         print_metrics(test_metrics)

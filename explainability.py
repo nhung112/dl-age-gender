@@ -36,23 +36,29 @@ def compute_gradcam(model, images, target, target_layer):
 
 def select_gradcam_indices(loader, selection_path, sample_count):
     members = loader.dataset.data["member"].astype(str).tolist()
+    member_to_index = {member: index for index, member in enumerate(members)}
+    sample_count = min(sample_count, len(members))
+
     if selection_path.is_file():
         selected_members = json.loads(
             selection_path.read_text(encoding="utf-8")
         )["members"]
-    else:
-        selected_indices = torch.randperm(
-            len(members)
-        )[:min(sample_count, len(members))].tolist()
-        selected_members = [members[index] for index in selected_indices]
-        selection_path.parent.mkdir(parents=True, exist_ok=True)
-        selection_path.write_text(
-            json.dumps({"members": selected_members}, indent=2),
-            encoding="utf-8"
-        )
-    member_to_index = {member: index for index, member in enumerate(members)}
-    if set(selected_members) - member_to_index.keys():
-        raise ValueError("Saved Grad-CAM samples are not in the dataset")
+        selected_members = [str(member) for member in selected_members]
+        if (
+            len(selected_members) == sample_count
+            and len(set(selected_members)) == sample_count
+            and all(member in member_to_index for member in selected_members)
+        ):
+            return [member_to_index[member] for member in selected_members]
+
+    selected_indices = torch.randperm(len(members))[:sample_count].tolist()
+    selected_members = [members[index] for index in selected_indices]
+
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(
+        json.dumps({"members": selected_members}, indent=2),
+        encoding="utf-8"
+    )
     return [member_to_index[member] for member in selected_members]
 
 

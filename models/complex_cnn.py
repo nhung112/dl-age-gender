@@ -53,7 +53,7 @@ class ComplexCNN(nn.Module):
     - Stem + 3 stage residual dùng CHUNG cho cả 2 nhiệm vụ (shared trunk)
     - Sau đó TÁCH NHÁNH: age_branch và gender_branch, mỗi nhánh có 1 stage
       residual độc lập, không chia sẻ trọng số với nhau
-    - Head riêng cho age (regression) và gender (classification), giữ
+    - Head riêng cho age classification và gender classification
 
     """
 
