@@ -31,12 +31,19 @@ def print_metrics(metrics):
     for name, value in metrics.items():
         if name == "age_confusion_matrix":
             matrix = value
-            cell_width = max(5, max(len(str(cell)) for row in matrix for cell in row),)
+            cell_width = max(5, max(len(str(cell)) for row in matrix for cell in row))
             for row in matrix:
                 print(" ".join(f"{cell:>{cell_width}}" for cell in row))
             continue
         if isinstance(value, (int, float)):
             print(f"{name}: {value:.4f}")
+        elif (
+            isinstance(value, list)
+            and value
+            and all(isinstance(item, (int, float)) for item in value)
+        ):
+            formatted_values = ", ".join(f"{item:.4f}" for item in value)
+            print(f"{name}: [{formatted_values}]")
         else:
             print(f"{name}: {value}")
 
