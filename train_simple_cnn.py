@@ -1,16 +1,11 @@
 import argparse
 from pathlib import Path
 import torch
-
 from evaluation import evaluate_test, load_best_checkpoint, print_metrics
-from explainability import (
-    save_gradcam_visualization,
-    select_gradcam_indices
-)
+from explainability import (save_gradcam_visualization, select_gradcam_indices)
 from models.simple_cnn import SimpleCNN
 from preprocessing import build_loaders
 from training import compute_age_class_weights, train_model
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = PROJECT_ROOT / "data" / "models" / "simple_cnn"
@@ -105,7 +100,6 @@ def main():
             )
     finally:
         close_datasets(loaders)
-
 
 if __name__ == "__main__":
     main()

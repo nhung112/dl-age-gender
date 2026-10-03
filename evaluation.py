@@ -1,22 +1,9 @@
 import torch
+from training import (AGE_LOSS_WEIGHT, GENDER_LOSS_WEIGHT, 
+                      MultitaskLoss, run_epoch, save_json)
 
-from training import (
-    AGE_LOSS_WEIGHT,
-    GENDER_LOSS_WEIGHT,
-    MultitaskLoss,
-    run_epoch,
-    save_json
-)
-
-
-def evaluate_test(
-    model,
-    test_loader,
-    device,
-    output_dir,
-    age_class_weights=None,
-    checkpoint_config=None
-):
+def evaluate_test(model, test_loader, device, output_dir,
+                  age_class_weights=None, checkpoint_config=None):
     """Evaluate a loaded best checkpoint once on the untouched test split."""
     metrics = run_epoch(
         model=model,
@@ -24,8 +11,7 @@ def evaluate_test(
         criterion=MultitaskLoss(
             age_class_weights=age_class_weights,
             age_weight=AGE_LOSS_WEIGHT,
-            gender_weight=GENDER_LOSS_WEIGHT
-        ),
+            gender_weight=GENDER_LOSS_WEIGHT),
         device=device,
         optimizer=None
     )
@@ -33,7 +19,6 @@ def evaluate_test(
         {
             "metrics": metrics,
             "optimizer": (checkpoint_config or {}).get("optimizer"),
-            "scheduler": (checkpoint_config or {}).get("scheduler"),
             "age_loss_weight": AGE_LOSS_WEIGHT,
             "gender_loss_weight": GENDER_LOSS_WEIGHT
         },
@@ -44,6 +29,12 @@ def evaluate_test(
 
 def print_metrics(metrics):
     for name, value in metrics.items():
+        if name == "age_confusion_matrix":
+            matrix = value
+            cell_width = max(5, max(len(str(cell)) for row in matrix for cell in row),)
+            for row in matrix:
+                print(" ".join(f"{cell:>{cell_width}}" for cell in row))
+            continue
         if isinstance(value, (int, float)):
             print(f"{name}: {value:.4f}")
         else:

@@ -1,15 +1,12 @@
 import json
 import time
 from pathlib import Path
-
 import torch
 from torch import nn
-
 from age_config import AGE_LABELS, NUM_AGE_CLASSES
 
 AGE_LOSS_WEIGHT = 1.0
 GENDER_LOSS_WEIGHT = 1.0
-
 
 class MultitaskLoss(nn.Module):
     def __init__(
@@ -25,18 +22,10 @@ class MultitaskLoss(nn.Module):
         self.gender_criterion = nn.CrossEntropyLoss()
 
     def forward(self, outputs, true_age_class, true_gender):
-        age_loss = self.age_criterion(
-            outputs["age"],
-            true_age_class
-        )
-        gender_loss = self.gender_criterion(
-            outputs["gender"],
-            true_gender
-        )
-        total_loss = (
-            self.age_weight * age_loss
-            + self.gender_weight * gender_loss
-        )
+        age_loss = self.age_criterion(outputs["age"], true_age_class)
+        gender_loss = self.gender_criterion(outputs["gender"],true_gender)
+        total_loss = (self.age_weight * age_loss + self.gender_weight * gender_loss)
+        
         return total_loss, age_loss, gender_loss
 
 
@@ -57,16 +46,8 @@ class EpochMetrics:
         self.false_positive = 0
         self.false_negative = 0
 
-    def update(
-        self,
-        batch_size,
-        total_loss,
-        age_loss,
-        gender_loss,
-        predicted_age_class,
-        true_age_class,
-        predicted_gender,
-        true_gender
+    def update(self, batch_size, total_loss, age_loss, gender_loss,
+               predicted_age_class, true_age_class, predicted_gender, true_gender
     ):
         self.samples += batch_size
         self.total_loss += total_loss.item() * batch_size
@@ -132,17 +113,13 @@ class EpochMetrics:
             "age_recall_per_class": age_recall.tolist(),
             "age_confusion_matrix": self.age_confusion.tolist(),
             "gender_accuracy": self.correct_gender / self.samples,
+            "gender_precision": precision,
+            "gender_recall": recall,
             "gender_f1": f1
         }
 
 
-def run_epoch(
-    model,
-    loader,
-    criterion,
-    device,
-    optimizer=None
-):
+def run_epoch(model, loader, criterion, device, optimizer=None):
     training = optimizer is not None
     model.train(training)
     metrics = EpochMetrics()
@@ -176,8 +153,7 @@ def count_parameters(model):
     return sum(
         parameter.numel()
         for parameter in model.parameters()
-        if parameter.requires_grad
-    )
+        if parameter.requires_grad)
 
 
 def compute_age_class_weights(train_loader, device):
@@ -196,8 +172,7 @@ def compute_age_class_weights(train_loader, device):
 def save_json(data, output_path):
     Path(output_path).write_text(
         json.dumps(data, indent=2),
-        encoding="utf-8"
-    )
+        encoding="utf-8")
 
 
 def save_checkpoint(output_path, model, optimizer, epoch, metrics, config):
@@ -210,18 +185,8 @@ def save_checkpoint(output_path, model, optimizer, epoch, metrics, config):
     }, output_path)
 
 
-def train_model(
-    model,
-    train_loader,
-    val_loader,
-    device,
-    output_dir,
-    model_name,
-    max_epochs,
-    learning_rate,
-    weight_decay,
-    patience,
-    age_class_weights=None
+def train_model(model, train_loader, val_loader, device, output_dir, model_name,
+                max_epochs, learning_rate, weight_decay, patience, age_class_weights=None
 ):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -234,28 +199,20 @@ def train_model(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.5, patience=3, min_lr=1e-6
+        optimizer, mode="max", factor=0.5, patience=4, min_lr=1e-6
     )
     config = {
         "model": model_name,
         "parameter_count": count_parameters(model),
         "max_epochs": max_epochs,
-        "learning_rate": learning_rate,
-        "weight_decay": weight_decay,
         "optimizer": {
             "name": optimizer.__class__.__name__,
             "learning_rate": learning_rate,
             "weight_decay": weight_decay
         },
-        "scheduler": {
-            "name": scheduler.__class__.__name__,
-            "mode": "max",
-            "factor": 0.5,
-            "patience": 4,
-            "min_lr": 1e-6
-        },
         "early_stopping_patience": patience,
         "age_labels": AGE_LABELS,
+        "age_class_weights": age_class_weights,
         "age_loss": "weighted CrossEntropyLoss",
         "age_loss_weight": AGE_LOSS_WEIGHT,
         "gender_loss": "CrossEntropyLoss",
@@ -268,13 +225,7 @@ def train_model(
     epochs_without_improvement = 0
     for epoch in range(1, max_epochs + 1):
         start_time = time.perf_counter()
-        train_metrics = run_epoch(
-            model,
-            train_loader,
-            criterion,
-            device,
-            optimizer
-        )
+        train_metrics = run_epoch(model, train_loader, criterion, device, optimizer)
         val_metrics = run_epoch(model, val_loader, criterion, device)
         scheduler.step(val_metrics["age_macro_f1"])
         history.append({
@@ -290,8 +241,7 @@ def train_model(
             best_checkpoint_score = checkpoint_score
             epochs_without_improvement = 0
             save_checkpoint(
-                checkpoint_path, model, optimizer, epoch, val_metrics, config
-            )
+                checkpoint_path, model, optimizer, epoch, val_metrics, config)
         else:
             epochs_without_improvement += 1
         print(
