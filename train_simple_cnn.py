@@ -10,9 +10,9 @@ from training import compute_age_class_weights, train_model
 PROJECT_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = PROJECT_ROOT / "data" / "models" / "simple_cnn"
 IMAGE_SIZE = 224
-BATCH_SIZE = 32
-MAX_EPOCHS = 50
-LEARNING_RATE = 3e-4
+BATCH_SIZE = 64
+MAX_EPOCHS = 40
+LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
 PATIENCE = 8
 GRADCAM_SAMPLE_COUNT = 8

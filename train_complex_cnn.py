@@ -16,10 +16,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = PROJECT_ROOT / "data" / "models" / "complex_cnn"
 GRADCAM_SELECTION_PATH = OUTPUT_DIR / "gradcam_samples.json"
 IMAGE_SIZE = 224
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 MAX_EPOCHS = 50
 LEARNING_RATE = 3e-4
-WEIGHT_DECAY = 1e-4
+WEIGHT_DECAY = 5e-4
 PATIENCE = 8
 GRADCAM_SAMPLE_COUNT = 8
 

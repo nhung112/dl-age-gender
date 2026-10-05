@@ -28,4 +28,7 @@ class ResNet18MultiTask(nn.Module):
         age_logits = self.age_head(features)
         gender_logits = self.gender_head(features)
 
-        return age_logits, gender_logits
+        return {
+            "age": age_logits,
+            "gender": gender_logits
+        }

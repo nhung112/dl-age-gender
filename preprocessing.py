@@ -21,7 +21,7 @@ METADATA_DIR = PROJECT_ROOT / "data/metadata"
 OUTPUT_DIR = PROJECT_ROOT / "data/preprocessing"
 
 IMAGE_SIZE = 224
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 
 SPLIT_NAMES = ("train", "val", "test")
 COLUMNS = ["member", "age_class", "gender", "race"]

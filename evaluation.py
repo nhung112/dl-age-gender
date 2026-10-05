@@ -32,6 +32,7 @@ def print_metrics(metrics):
         if name == "age_confusion_matrix":
             matrix = value
             cell_width = max(5, max(len(str(cell)) for row in matrix for cell in row))
+            print(f"{name}:")
             for row in matrix:
                 print(" ".join(f"{cell:>{cell_width}}" for cell in row))
             continue

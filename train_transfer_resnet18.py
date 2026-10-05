@@ -4,28 +4,16 @@ import json
 import torch
 import torch.nn as nn
 from sklearn.metrics import f1_score
-from torch.utils.data import default_collate
 
-from age_config import NUM_AGE_CLASSES, age_to_class
-from preprocessing import build_loaders, close_loaders, load_splits
-from resnet18_multitask import ResNet18MultiTask
+from age_config import NUM_AGE_CLASSES
+from models.transfer_resnet18 import ResNet18MultiTask
+from preprocessing import build_loaders
 
 
 EPOCHS = 50
 PATIENCE = 8
 WEIGHT_DECAY = 1e-4
 OUTPUT_DIR = Path("outputs/resnet18")
-
-
-def collate_with_age_class(samples):
-    batch = default_collate(samples)
-    ages = batch["age"].reshape(-1).tolist()
-    batch["age_class"] = torch.tensor(
-        [age_to_class(age) for age in ages],
-        dtype=torch.long
-    )
-    return batch
-
 
 def run_epoch(model, loader, age_criterion, gender_criterion, device, optimizer=None):
     training = optimizer is not None
@@ -46,7 +34,9 @@ def run_epoch(model, loader, age_criterion, gender_criterion, device, optimizer=
             optimizer.zero_grad(set_to_none=True)
 
         with torch.set_grad_enabled(training):
-            age_logits, gender_logits = model(images)
+            outputs = model(images)
+            age_logits = outputs["age"]
+            gender_logits = outputs["gender"]
             age_loss = age_criterion(age_logits, ages)
             gender_loss = gender_criterion(gender_logits, genders)
             loss = 1.5 * age_loss + 0.5 * gender_loss
@@ -89,15 +79,13 @@ def run_epoch(model, loader, age_criterion, gender_criterion, device, optimizer=
 
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    splits = load_splits()
-    loaders = build_loaders(model_type="resnet18", splits=splits)
-
-    for loader in loaders.values():
-        loader.dataset.data["age_class"] = (
-            loader.dataset.data["age"].apply(age_to_class).astype("int64")
-        )
-        loader.collate_fn = collate_with_age_class
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    loaders = build_loaders(model_type="resnet18")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -198,7 +186,8 @@ def main():
         )
 
     finally:
-        close_loaders(loaders)
+        for loader in loaders.values():
+            loader.dataset.close()
 
 
 if __name__ == "__main__":
