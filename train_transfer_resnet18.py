@@ -1,19 +1,17 @@
 from pathlib import Path
 import json
-
 import torch
 import torch.nn as nn
 from sklearn.metrics import f1_score
-
 from age_config import NUM_AGE_CLASSES
 from models.transfer_resnet18 import ResNet18MultiTask
 from preprocessing import build_loaders
 
-
+PROJECT_ROOT = Path(__file__).resolve().parent
+OUTPUT_DIR = PROJECT_ROOT / "data" / "models" / "transfer_resnet18"
 EPOCHS = 50
 PATIENCE = 8
 WEIGHT_DECAY = 1e-4
-OUTPUT_DIR = Path("outputs/resnet18")
 
 def run_epoch(model, loader, age_criterion, gender_criterion, device, optimizer=None):
     training = optimizer is not None
@@ -139,11 +137,8 @@ def main():
                 gender_criterion, device
             )
 
-            score = (
-                0.7 * val_metrics["age_accuracy"]
-                + 0.3 * val_metrics["age_macro_f1"]
-            )
-            scheduler.step(score)
+            score = val_metrics["age_macro_f1"]
+            scheduler.step(val_metrics["age_macro_f1"])
 
             history.append({
                 "epoch": epoch,

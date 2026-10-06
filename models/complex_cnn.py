@@ -79,7 +79,7 @@ def initialize_weights(model):
             nn.init.zeros_(m.bn2.weight)
 
 
-class ComplexCNNShared(nn.Module):
+class ComplexCNN(nn.Module):
     """
     CNN residual train từ đầu, backbone dùng chung cho cả 2 tác vụ.
     Stem -> stage1 -> stage2 -> stage3 -> stage4 -> GAP -> {age_head, gender_head}

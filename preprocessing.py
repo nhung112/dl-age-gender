@@ -83,6 +83,7 @@ def create_transform(model_type, training, image_size=IMAGE_SIZE):
     if training:
         steps.extend([
             transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomAffine(degrees=8, translate=(0.05, 0.05), scale=(0.9, 1.1)),
             transforms.ColorJitter(
                 brightness=0.1,
                 contrast=0.1
@@ -255,6 +256,9 @@ def save_config(output_dir):
         },
         "train_augmentation": {
             "horizontal_flip_probability": 0.5,
+            "degrees": 8,
+            "translate": [0.05, 0.05],
+            "scale": [0.9, 1.1],
             "brightness": 0.1,
             "contrast": 0.1
         },
